@@ -1,0 +1,50 @@
+name: "✨ 기능 개발"
+description: "새로운 기능 개발 작업을 정의하고 추적합니다."
+title: "[Feat] "
+labels: ["✨ Feature"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: "💻 구현할 기능"
+      description: "개발할 기능의 목표와 주요 내용을 명확하게 작성해주세요."
+      placeholder: |
+        - 예: 사용자가 프로필 이미지를 업로드하고 변경할 수 있는 기능 구현
+    validations:
+      required: true
+  - type: textarea
+    id: tech-spec
+    attributes:
+      label: "🛠️ 기술 스펙 (선택 사항)"
+      description: "필요한 기술 스택, API 명세, DB 스키마 변경 등 기술적인 세부 사항을 기재해주세요."
+      placeholder: |
+        - API: `POST /api/users/profile-image`
+        - DB: `User` 테이블에 `profileImageUrl` 컬럼 추가
+        - Library: `multer`, `aws-sdk`
+    validations:
+      required: false
+  - type: textarea
+    id: tasks
+    attributes:
+      label: "✅ 세부 작업 목록 (To-Do)"
+      description: "이 기능을 완성하기 위한 세부 작업들을 체크리스트로 작성해주세요."
+      placeholder: |
+        - [ ] API 명세서 작성
+        - [ ] DB 스키마 설계 및 변경
+        - [ ] 백엔드 로직 구현
+        - [ ] 프론트엔드 UI 개발
+        - [ ] 단위 테스트 및 통합 테스트
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: "🏁 완료 조건 (Acceptance Criteria)"
+      description: "어떤 조건이 충족되어야 이 작업이 '완료'된 것으로 간주할지 정의해주세요."
+      placeholder: |
+        - [ ] 사용자가 이미지를 성공적으로 업로드할 수 있다.
+        - [ ] 업로드된 이미지가 프로필 페이지에 즉시 반영된다.
+        - [ ] 5MB 이상의 파일은 업로드할 수 없다.
+    validations:
+      required: false
