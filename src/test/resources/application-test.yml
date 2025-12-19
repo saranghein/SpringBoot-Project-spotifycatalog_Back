@@ -1,0 +1,7 @@
+spring:
+  r2dbc:
+    url: r2dbc:mysql://localhost:3306/spotifycatalog
+    username: app
+    password: app
+  flyway:
+    enabled: false
