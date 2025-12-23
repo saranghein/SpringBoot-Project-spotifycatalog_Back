@@ -25,7 +25,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 	implementation 'org.flywaydb:flyway-mysql'
-	implementation 'org.springframework:spring-jdbc'
+	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	runtimeOnly 'io.asyncer:r2dbc-mysql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'

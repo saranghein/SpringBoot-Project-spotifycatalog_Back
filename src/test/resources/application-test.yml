@@ -1,7 +1,17 @@
 spring:
   r2dbc:
-    url: r2dbc:mysql://localhost:3306/spotifycatalog
-    username: app
-    password: app
+    url: r2dbc:mysql://localhost:3306/spotifycatalog_test
+    username: root
+    password: root1234
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/spotifycatalog_test?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=utf8&createDatabaseIfNotExist=true
+    username: root
+    password: root1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
   flyway:
     enabled: false
+    locations: classpath:db/migration
+    baseline-on-migrate: false # DB 재사용 : true
+
