@@ -1,0 +1,19 @@
+spring:
+  config:
+    activate:
+      on-profile: ingest
+  r2dbc:
+    url: r2dbc:mysql://localhost:3306/spotifycatalog
+    username: root
+    password: root1234
+  flyway:
+    enabled: false
+  datasource:
+    url: jdbc:mysql://localhost:3306/spotifycatalog?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&useUnicode=true
+    username: root
+    password: root1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+
+
+
