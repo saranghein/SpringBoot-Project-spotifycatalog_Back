@@ -1,0 +1,54 @@
+name: "🧹 개발 환경 설정"
+description: "개발을 위한 환경 설정 및 도구 구성 작업을 정의하고 추적합니다."
+title: "[Chore] "
+labels: ["🧹 Chore"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: "📄 작업 요약"
+      description: "수행하려는 환경 설정 / 빌드 / 프로젝트 운영 작업을 간단히 작성해주세요."
+      placeholder: |
+        - 예: ESLint + Prettier 환경 설정, 폴더 구조 정리
+    validations:
+      required: true
+  - type: textarea
+    id: purpose
+    attributes:
+      label: "🎯 작업 목적 / 필요성"
+      description: "해당 작업이 필요한 기술적 이유를 작성해주세요."
+      placeholder: |
+        - 목적: 개발자 경험(DX) 향상 및 안정적인 프로젝트 구조 확보
+        - 필요성: 기존 설정의 일관성 부족 / 신규 패키지 도입 필요 / 환경 분리 필요
+    validations:
+      required: true
+  - type: textarea
+    id: tech-spec
+    attributes:
+      label: "🛠️ 기술 스펙 / 변경 사항 (선택 사항)"
+      description: "수정되거나 추가될 설정 파일, 패키지, 개발환경 요소 등을 작성해주세요."
+      placeholder: |
+        - 예 : eslint.config.js, tsconfig.json, vite.config.ts, husky 등
+    validations:
+      required: false
+  - type: textarea
+    id: tasks
+    attributes:
+      label: "✅ 세부 작업 목록 (To-Do)"
+      description: "작업을 수행하기 위한 세부 단계들을 체크리스트로 작성해주세요."
+      placeholder: |
+        - [ ] 패키지 설치 또는 업데이트
+        - [ ] 설정 파일 추가/수정
+        - [ ] 개발 환경 테스트 및 검증
+        - [ ] PR 생성 및 코드 리뷰 요청
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: "🏁 완료 조건"
+      description: "작업이 완료되었다고 판단할 기준을 정의해주세요."
+      placeholder: |
+        - 예: "모든 설정이 정상적으로 적용되고 개발 서버가 정상 구동된다."
+    validations:
+      required: false
