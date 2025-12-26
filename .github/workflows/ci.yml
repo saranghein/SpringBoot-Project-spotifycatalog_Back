@@ -3,14 +3,14 @@ name: CI
 on:
   push:
   pull_request:
-  
+
 permissions:
   contents: write
   checks: write
   pull-requests: write
   pages: write
   id-token: write
-  
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -38,10 +38,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-        
+
       - name: Wait for MySQL
         run: |
           for i in {1..30}; do
@@ -74,7 +74,7 @@ jobs:
 
           mkdir -p src/test/resources/dataset
           kaggle datasets download -d devdope/900k-spotify -p src/test/resources/dataset --unzip
-          
+
       - name: Run tests
         env:
           SPRING_PROFILES_ACTIVE: test
@@ -84,7 +84,7 @@ jobs:
           _JAVA_OPTIONS: >-
             -Xms256m -Xmx2g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8
         run: ./gradlew test --no-daemon --stacktrace
-              
+
       # PR/Checks에 테스트 요약 표시
       - name: Publish test results to PR
         if: always()
@@ -103,22 +103,57 @@ jobs:
           name: test-report
           path: build/reports/tests/test
 
-      # 아티팩트 업로드 (HTML 리포트)
-      - name: Upload Pages artifact (test report)
-        if: always()
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: build/reports/tests/test
-
   deploy-pages:
     runs-on: ubuntu-latest
     needs: test
-    if: always() # 테스트 실패해도 리포트 배포는 시도(리포트가 생성되는 범위에서)
+    if: always()
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
+      - name: Checkout (current branch)
+        uses: actions/checkout@v4
+
+      # test job에서 올린 테스트 리포트 아티팩트 다운로드
+      - name: Download test report artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: test-report
+          path: _test_report
+
+      # gh-pages에서 벤치마크 페이지(= dev/bench-memory) 가져오기
+      - name: Checkout gh-pages (benchmark)
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: _gh_pages
+
+      - name: Prepare public folder (test + bench)
+        run: |
+          set -e
+          rm -rf public
+          mkdir -p public/test public/bench
+          
+          # /test/  → 테스트 리포트
+          cp -R _test_report/. public/test/
+          
+          # /bench/ → gh-pages/dev/bench-memory 의 index.html, data.js
+          if [ -d _gh_pages/dev/bench-memory ]; then
+            cp -R _gh_pages/dev/bench-memory/. public/bench/
+          fi
+
+      - name: Upload Pages artifact (combined)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        
+
+      - name: Write URLs to Summary
+        run: |
+          echo "## Pages" >> $GITHUB_STEP_SUMMARY
+          echo "- Test report: ${{ steps.deployment.outputs.page_url }}test/" >> $GITHUB_STEP_SUMMARY
+          echo "- Benchmark:   ${{ steps.deployment.outputs.page_url }}bench/" >> $GITHUB_STEP_SUMMARY
