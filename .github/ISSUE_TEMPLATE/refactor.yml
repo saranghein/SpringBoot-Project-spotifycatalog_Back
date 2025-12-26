@@ -1,0 +1,59 @@
+name: "⚒️ 리팩터링"
+description: "기존 코드의 구조나 아키텍처를 개선하는 작업을 정의합니다."
+title: "[Refactor] "
+labels: ["⚒️ Refactor"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: "📄 작업 요약"
+      description: "어떤 부분의 코드를 어떻게 개선했는지 요약해주세요."
+      placeholder: |
+        - 예: API 호출 로직 커스텀 훅으로 분리
+        - 예: 불필요한 Props 전달 구조 개선
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: "🎯 리팩터링 목적"
+      description: "코드를 개선하게 된 배경과 이 작업을 통해 얻는 이점을 작성해주세요."
+      placeholder: |
+        - 목적: 코드 가독성 향상 및 유지보수성 확보
+        - 필요성: 현재 로직이 너무 복잡하여 에러 발생 가능성이 높음
+    validations:
+      required: true
+
+  - type: textarea
+    id: changes
+    attributes:
+      label: "🔄 주요 변경 사항 (Before & After)"
+      description: "구조적으로 무엇이 바뀌었는지 비교해 주세요."
+      placeholder: |
+        - 수정 전: 하나의 파일에서 모든 상태 관리
+        - 수정 후: 기능 단위로 컴포넌트 및 로직 분리
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: "✅ 세부 작업 목록 (To-Do)"
+      description: "작업 수행 단계들을 체크리스트로 작성해주세요."
+      placeholder: |
+        - [ ] 코드 분리 작업 완료
+        - [ ] 기존 기능 영향도 테스트
+        - [ ] 불필요한 레거시 코드 삭제
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: "🏁 완료 조건"
+      description: "작업이 성공적으로 끝났다고 판단할 기준입니다."
+      placeholder: |
+        - 예: 기존 기능이 동일하게 동작하며, 코드 중복이 30% 이상 감소함
+    validations:
+      required: false
