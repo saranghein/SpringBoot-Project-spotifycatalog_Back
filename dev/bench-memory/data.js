@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1766734272970,
+  "lastUpdate": 1766734375416,
   "repoUrl": "https://github.com/saranghein/SpringBoot-Project-spotifycatalog_Back",
   "entries": {
     "Benchmark": [
@@ -164,6 +164,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/saranghein/SpringBoot-Project-spotifycatalog_Back/commit/60f12e9afc22939d21d7159650a9ded21ddbf22d"
         },
         "date": 1766734272498,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "gradle test peak WorkingSet (Windows)",
+            "value": 564.9,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "98319061+saranghein@users.noreply.github.com",
+            "name": "LeeHaeIn",
+            "username": "saranghein"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0d51ee833630d5a3694bd2c12190c921ad5a9f7e",
+          "message": ":books: Docs: 이슈탬플릿 추가",
+          "timestamp": "2025-12-26T16:32:46+09:00",
+          "tree_id": "c93a812e853b09bfedfec3e49df3fa132ba45e46",
+          "url": "https://github.com/saranghein/SpringBoot-Project-spotifycatalog_Back/commit/0d51ee833630d5a3694bd2c12190c921ad5a9f7e"
+        },
+        "date": 1766734374953,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
