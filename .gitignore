@@ -37,3 +37,5 @@ out/
 .vscode/
 
 dataset/
+bench/measure-mem.ps1
+bench/mem.csv

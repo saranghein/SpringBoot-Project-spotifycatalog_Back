@@ -48,7 +48,7 @@ class SpotifyNdjsonIngestRunnerTest {
                 .collectList()
                 .block();
 
-        when(lineReader.readLines("dataset/900kdefinitivespotifydataset.json"))
+        when(lineReader.readLines("dataset/900k Definitive Spotify Dataset.json"))
                 .thenReturn(Flux.fromIterable(lines));
 
         // parse: 각 json line -> TrackRaw로 매핑
@@ -101,7 +101,7 @@ class SpotifyNdjsonIngestRunnerTest {
                 .collectList()
                 .block();
 
-        when(lineReader.readLines("dataset/900kdefinitivespotifydataset.json"))
+        when(lineReader.readLines("dataset/900k Definitive Spotify Dataset.json"))
                 .thenReturn(Flux.fromIterable(lines));
 
         when(om.readValue(anyString(), eq(TrackRaw.class)))
@@ -140,7 +140,7 @@ class SpotifyNdjsonIngestRunnerTest {
 
         SpotifyNdjsonIngestRunner runner = new SpotifyNdjsonIngestRunner(lineReader, om, ingestService);
 
-        when(lineReader.readLines("dataset/900kdefinitivespotifydataset.json"))
+        when(lineReader.readLines("dataset/900k Definitive Spotify Dataset.json"))
                 .thenReturn(Flux.just("{bad-json}"));
 
         when(om.readValue(anyString(), eq(TrackRaw.class)))
@@ -170,7 +170,7 @@ class SpotifyNdjsonIngestRunnerTest {
 
         SpotifyNdjsonIngestRunner runner = new SpotifyNdjsonIngestRunner(lineReader, om, ingestService);
 
-        when(lineReader.readLines("dataset/900kdefinitivespotifydataset.json"))
+        when(lineReader.readLines("dataset/900k Definitive Spotify Dataset.json"))
                 .thenReturn(Flux.just("{\"song\":\"s1\"}"));
 
         when(om.readValue(anyString(), eq(TrackRaw.class)))
