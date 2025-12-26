@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1766730362689,
+  "lastUpdate": 1766731016610,
   "repoUrl": "https://github.com/saranghein/SpringBoot-Project-spotifycatalog_Back",
   "entries": {
     "Benchmark": [
@@ -52,6 +52,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/saranghein/SpringBoot-Project-spotifycatalog_Back/commit/548f6d92a8601fc2933d3ea7375cfe1c545e8f57"
         },
         "date": 1766730361764,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "gradle test peak WorkingSet (Windows)",
+            "value": 564.9,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "saranghein@gmail.com",
+            "name": "saranghein",
+            "username": "saranghein"
+          },
+          "committer": {
+            "email": "saranghein@gmail.com",
+            "name": "saranghein",
+            "username": "saranghein"
+          },
+          "distinct": true,
+          "id": "5120fab7348cbcde0f2e0b93e42b999788ca0257",
+          "message": ":whale: Devops: ci 수정",
+          "timestamp": "2025-12-26T15:36:14+09:00",
+          "tree_id": "813b8e00122629f615ed63fd13c16fe461a2fcc4",
+          "url": "https://github.com/saranghein/SpringBoot-Project-spotifycatalog_Back/commit/5120fab7348cbcde0f2e0b93e42b999788ca0257"
+        },
+        "date": 1766731016356,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
