@@ -56,7 +56,7 @@ public class SpotifyNdjsonIngestRunner implements CommandLineRunner {
      */
     @Override
     public void run(String... args) {
-        String path = "dataset/900kdefinitivespotifydataset.json";
+        String path = "dataset/900k Definitive Spotify Dataset.json";
 
         lineReader.readLines(path)
                 .filter(line -> line != null && !line.isBlank())

@@ -26,7 +26,8 @@ class NdjsonLineReaderTest {
     @Test
     void readLines_readsNdjsonFile_lineByLine() {
         StepVerifier.create(
-                        reader.readLines("dataset/900kdefinitivespotifydataset.json")
+                        reader.readLines("dataset/900k Definitive Spotify Dataset.json")
+                                .take(1)
                 )
                 .assertNext(line -> {
                     assertNotNull(line);
@@ -59,7 +60,7 @@ class NdjsonLineReaderTest {
     @Test
     void readLines_isLazy_andTerminates() {
         StepVerifier.create(
-                        reader.readLines("dataset/900kdefinitivespotifydataset.json")
+                        reader.readLines("dataset/900k Definitive Spotify Dataset.json")
                                 .collectList()
                 )
                 .assertNext(lines -> {
