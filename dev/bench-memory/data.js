@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1766731016610,
+  "lastUpdate": 1766731496754,
   "repoUrl": "https://github.com/saranghein/SpringBoot-Project-spotifycatalog_Back",
   "entries": {
     "Benchmark": [
@@ -81,6 +81,31 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/saranghein/SpringBoot-Project-spotifycatalog_Back/commit/5120fab7348cbcde0f2e0b93e42b999788ca0257"
         },
         "date": 1766731016356,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "gradle test peak WorkingSet (Windows)",
+            "value": 564.9,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "saranghein",
+            "username": "saranghein"
+          },
+          "committer": {
+            "name": "saranghein",
+            "username": "saranghein"
+          },
+          "id": "5120fab7348cbcde0f2e0b93e42b999788ca0257",
+          "message": "✨ Feat: 데이터 처리 구현",
+          "timestamp": "2025-12-19T08:42:15Z",
+          "url": "https://github.com/saranghein/SpringBoot-Project-spotifycatalog_Back/pull/4/commits/5120fab7348cbcde0f2e0b93e42b999788ca0257"
+        },
+        "date": 1766731496377,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
