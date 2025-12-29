@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1766734375416,
+  "lastUpdate": 1766993375827,
   "repoUrl": "https://github.com/saranghein/SpringBoot-Project-spotifycatalog_Back",
   "entries": {
     "Benchmark": [
@@ -198,6 +198,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "gradle test peak WorkingSet (Windows)",
             "value": 564.9,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "saranghein@gmail.com",
+            "name": "saranghein",
+            "username": "saranghein"
+          },
+          "committer": {
+            "email": "saranghein@gmail.com",
+            "name": "saranghein",
+            "username": "saranghein"
+          },
+          "distinct": true,
+          "id": "922a0ff75ed31368f5319fb6862119009517b58a",
+          "message": ":broom: Chore: import 수정",
+          "timestamp": "2025-12-29T16:28:41+09:00",
+          "tree_id": "6b8f8249742a18813a8fb1c4b89ae7e2822e7c06",
+          "url": "https://github.com/saranghein/SpringBoot-Project-spotifycatalog_Back/commit/922a0ff75ed31368f5319fb6862119009517b58a"
+        },
+        "date": 1766993375592,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "gradle test peak WorkingSet (Windows)",
+            "value": 1858.2,
             "unit": "MB"
           }
         ]
