@@ -18,7 +18,7 @@ import org.springframework.core.env.Environment;
  * {@code spring.flyway.baseline-on-migrate}, {@code spring.flyway.baseline-version}</p>
  */
 @Configuration
-@Profile("local")
+@Profile({"local", "test"})
 public class FlywayRunner {
 
     /**
