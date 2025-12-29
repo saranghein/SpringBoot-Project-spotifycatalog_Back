@@ -2,9 +2,9 @@ spring:
   application:
     name: spotifycatalog
   profiles:
-    default: ingest-run
+    default: ingest
     group:
-      ingest-run: [ flyway, ingest ]
+      ingest-run: [ ingest, flyway ]
 
   r2dbc:
     url: r2dbc:mysql://localhost:3306/spotifycatalog
@@ -14,8 +14,11 @@ spring:
   flyway:
     enabled: false
 
-  datasource:
-    url: jdbc:mysql://localhost:3306/spotifycatalog?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&useUnicode=true
-    username: root
-    password: root1234
-    driver-class-name: com.mysql.cj.jdbc.Driver
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
