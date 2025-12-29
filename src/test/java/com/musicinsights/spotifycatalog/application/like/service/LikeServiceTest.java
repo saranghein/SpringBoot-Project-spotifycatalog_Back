@@ -2,7 +2,6 @@ package com.musicinsights.spotifycatalog.application.like.service;
 
 import com.musicinsights.spotifycatalog.application.like.dto.response.LikeResponse;
 import com.musicinsights.spotifycatalog.application.like.dto.response.TopLikeResponse;
-import com.musicinsights.spotifycatalog.application.like.dto.response.LikeIncResponse;
 import com.musicinsights.spotifycatalog.application.like.repository.LikeCounterRepository;
 import com.musicinsights.spotifycatalog.application.like.repository.LikeEventRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -117,8 +116,8 @@ class LikeServiceTest {
 
         when(eventRepo.findTopIncreased(windowMinutes, limit))
                 .thenReturn(Flux.just(
-                        new LikeIncResponse(1L, 10L, "t1", "a1"),
-                        new LikeIncResponse(2L, 7L, "t2", "a2")
+                        new TopLikeResponse(1L, 10L, "t1", "a1"),
+                        new TopLikeResponse(2L, 7L, "t2", "a2")
                 ));
 
         // when

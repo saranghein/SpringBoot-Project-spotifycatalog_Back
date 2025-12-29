@@ -1,6 +1,6 @@
 package com.musicinsights.spotifycatalog.application.like.repository;
 
-import com.musicinsights.spotifycatalog.application.like.dto.response.LikeIncResponse;
+import com.musicinsights.spotifycatalog.application.like.dto.response.TopLikeResponse;
 import io.r2dbc.spi.Row;
 import io.r2dbc.spi.RowMetadata;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,7 +15,6 @@ import reactor.test.StepVerifier;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.function.BiFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,7 +74,7 @@ class LikeEventRepositoryTest {
 
     /**
      * findTopIncreased가 from(LocalDateTime)/limit를 바인딩하고,
-     * row를 {@link LikeIncResponse}로 매핑하여 Flux로 반환하는지 검증한다.
+     * row를 {@link TopLikeResponse}로 매핑하여 Flux로 반환하는지 검증한다.
      */
     @Test
     @DisplayName("Top 증가량 조회 시 시간/limit 바인딩 및 결과 매핑 검증")
@@ -88,13 +87,13 @@ class LikeEventRepositoryTest {
                 mock(DatabaseClient.GenericExecuteSpec.class, RETURNS_DEEP_STUBS);
 
         @SuppressWarnings("unchecked")
-        RowsFetchSpec<LikeIncResponse> fetch =
-                (RowsFetchSpec<LikeIncResponse>) mock(RowsFetchSpec.class);
+        RowsFetchSpec<TopLikeResponse> fetch =
+                (RowsFetchSpec<TopLikeResponse>) mock(RowsFetchSpec.class);
 
         when(db.sql(anyString())).thenReturn(spec);
         when(spec.bind(anyInt(), any())).thenReturn(spec);
 
-        ArgumentCaptor<BiFunction<Row, RowMetadata, LikeIncResponse>> mapperCaptor =
+        ArgumentCaptor<BiFunction<Row, RowMetadata, TopLikeResponse>> mapperCaptor =
                 ArgumentCaptor.forClass((Class) BiFunction.class);
 
         when(spec.map(mapperCaptor.capture())).thenReturn(fetch);
@@ -109,8 +108,8 @@ class LikeEventRepositoryTest {
             when(row2.get("track_id", Long.class)).thenReturn(2L);
             when(row2.get("inc_count", Long.class)).thenReturn(3L);
 
-            LikeIncResponse r1 = mapperCaptor.getValue().apply(row1, meta);
-            LikeIncResponse r2 = mapperCaptor.getValue().apply(row2, meta);
+            TopLikeResponse r1 = mapperCaptor.getValue().apply(row1, meta);
+            TopLikeResponse r2 = mapperCaptor.getValue().apply(row2, meta);
 
             return Flux.just(r1, r2);
         });
@@ -122,7 +121,7 @@ class LikeEventRepositoryTest {
         when(spec.bind(eq(0), bind0Captor.capture())).thenReturn(spec);
 
         // when
-        Flux<LikeIncResponse> flux = repo.findTopIncreased(windowMinutes, limit);
+        Flux<TopLikeResponse> flux = repo.findTopIncreased(windowMinutes, limit);
 
         // then (매핑 결과)
         StepVerifier.create(flux)
