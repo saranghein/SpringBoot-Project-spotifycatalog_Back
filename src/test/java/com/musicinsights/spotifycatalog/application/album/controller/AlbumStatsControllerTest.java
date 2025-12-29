@@ -2,7 +2,7 @@ package com.musicinsights.spotifycatalog.application.album.controller;
 
 import com.musicinsights.spotifycatalog.application.album.dto.response.ArtistAlbumStatsResponse;
 import com.musicinsights.spotifycatalog.application.album.dto.response.ArtistAlbumsResponse;
-import com.musicinsights.spotifycatalog.application.album.pagination.PageResult;
+import com.musicinsights.spotifycatalog.application.common.pagination.PageResult;
 import com.musicinsights.spotifycatalog.application.album.service.AlbumStatsService;
 import com.musicinsights.spotifycatalog.application.common.error.GlobalExceptionHandler;
 import com.musicinsights.spotifycatalog.application.common.error.NotFoundException;
