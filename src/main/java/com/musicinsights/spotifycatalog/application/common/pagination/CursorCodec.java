@@ -1,4 +1,4 @@
-package com.musicinsights.spotifycatalog.application.common.util;
+package com.musicinsights.spotifycatalog.application.common.pagination;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
