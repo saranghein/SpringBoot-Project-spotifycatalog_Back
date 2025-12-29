@@ -1,5 +1,6 @@
 package com.musicinsights.spotifycatalog.application.ingest;
 
+import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.IngestSeeds;
 import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.TrackRaw;
 import com.musicinsights.spotifycatalog.infrastructure.mapper.TrackRawBatchMapper;
 import com.musicinsights.spotifycatalog.infrastructure.persistence.r2dbc.repo.*;
@@ -17,19 +18,21 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+
 /**
- * {@link SpotifyIngestService} 단위 테스트.
+ * {@link SpotifyIngestService} 단위 테스트 (key 기반).
  *
  * <p>ingestBatch가 배치 처리 오케스트레이션(추출 → upsert/insertIgnore → id 조회 → 관계 row 생성)을
  * 올바른 순서로 수행하며, 전체 흐름이 트랜잭션({@link TransactionalOperator})으로 감싸지는지 검증한다.</p>
  *
- * <p>또한 중간 단계에서 에러가 발생할 경우 에러가 전파되고,
- * 이후 단계가 호출되지 않는지(중단)도 확인한다.</p>
+ * <p>중간 단계에서 에러가 발생할 경우 에러가 전파되고,
+ * 이후 단계가 호출되지 않는지(중단)도 검증한다.</p>
  */
-@DisplayName("배치 오케스트레이션 테스트")
+@DisplayName("배치 오케스트레이션 테스트 (key 기반)")
 class SpotifyIngestServiceTest {
+
     /**
-     * ingestBatch가 전체 ingest 흐름을 순서대로 호출하고,
+     * ingestBatch가 전체 단계를 순서대로 수행하고,
      * transactional로 래핑되어 실행되는지 검증한다.
      */
     @DisplayName("전체 ingest 순서대로 호출, transactional로 래핑되어 실행되는지 검증")
@@ -57,19 +60,28 @@ class SpotifyIngestServiceTest {
 
         List<TrackRaw> batch = List.of(new TrackRaw(), new TrackRaw());
 
-        // mapper.extract 결과
-        List<String> artistNames = List.of("IU", "BTS");
-        List<AlbumRow> albums = List.of(new AlbumRow("AlbumA", LocalDate.of(2020, 1, 1)));
-        TrackRawBatchMapper.BatchExtract ex = new TrackRawBatchMapper.BatchExtract(artistNames, albums);
+        // mapper.extract 결과 (key 기반)
+        var artistSeeds = List.of(
+                new IngestSeeds.ArtistSeed("kIU", "IU"),
+                new IngestSeeds.ArtistSeed("kBTS", "BTS")
+        );
+        var albumRow = new AlbumRow("AlbumA", LocalDate.of(2020, 1, 1));
+        var albumSeeds = List.of(
+                new IngestSeeds.AlbumSeed("akA", albumRow)
+        );
+
+        TrackRawBatchMapper.BatchExtract ex =
+                new TrackRawBatchMapper.BatchExtract(artistSeeds, albumSeeds);
+
         when(mapper.extract(batch)).thenReturn(ex);
 
-        // id maps
-        Map<String, Long> artistIdMap = Map.of("IU", 10L, "BTS", 11L);
-        Map<AlbumRow, Long> albumIdMap = Map.of(albums.get(0), 100L);
+        // id maps (key -> id)
+        Map<String, Long> artistIdByKey = Map.of("kIU", 10L, "kBTS", 11L);
+        Map<String, Long> albumIdByKey = Map.of("akA", 100L);
 
         // album_artist rows
         List<AlbumArtistRow> aaRows = List.of(new AlbumArtistRow(100L, 10L));
-        when(mapper.buildAlbumArtistRows(batch, artistIdMap, albumIdMap)).thenReturn(aaRows);
+        when(mapper.buildAlbumArtistRows(batch, artistIdByKey, albumIdByKey)).thenReturn(aaRows);
 
         // track build
         List<TrackRow> trackRows = List.of(
@@ -78,7 +90,7 @@ class SpotifyIngestServiceTest {
         );
         List<String> hashes = List.of("h1", "h2");
         TrackRawBatchMapper.TrackBuild tb = new TrackRawBatchMapper.TrackBuild(trackRows, hashes);
-        when(mapper.buildTrackRows(batch, albumIdMap)).thenReturn(tb);
+        when(mapper.buildTrackRows(batch, albumIdByKey)).thenReturn(tb);
 
         Map<String, Long> trackIdMap = Map.of("h1", 1000L, "h2", 2000L);
 
@@ -88,15 +100,17 @@ class SpotifyIngestServiceTest {
         List<AudioRow> audioRows = List.of(
                 new AudioRow(1000L, null, null, null, null, null, null, null, null, null, null, null)
         );
-        TrackRawBatchMapper.TrackRelations rel = new TrackRawBatchMapper.TrackRelations(taRows, lyricRows, audioRows);
-        when(mapper.buildTrackRelations(batch, trackRows, trackIdMap, artistIdMap)).thenReturn(rel);
+        TrackRawBatchMapper.TrackRelations rel =
+                new TrackRawBatchMapper.TrackRelations(taRows, lyricRows, audioRows);
+
+        when(mapper.buildTrackRelations(batch, trackRows, trackIdMap, artistIdByKey)).thenReturn(rel);
 
         // repo stubs (rowsUpdated)
-        when(artistRepo.insertIgnore(artistNames)).thenReturn(Mono.just(2L));
-        when(artistRepo.fetchArtistIdsByName(artistNames)).thenReturn(Mono.just(artistIdMap));
+        when(artistRepo.insertIgnoreByKey(artistSeeds)).thenReturn(Mono.just(2L));
+        when(artistRepo.fetchArtistIdsByKey(ex.artistKeys())).thenReturn(Mono.just(artistIdByKey));
 
-        when(albumRepo.upsert(albums)).thenReturn(Mono.just(1L));
-        when(albumRepo.fetchAlbumIdsByName(albums)).thenReturn(Mono.just(albumIdMap));
+        when(albumRepo.upsertByKey(albumSeeds)).thenReturn(Mono.just(1L));
+        when(albumRepo.fetchAlbumIdsByKey(ex.albumKeys())).thenReturn(Mono.just(albumIdByKey));
 
         when(albumArtistRepo.insertIgnore(aaRows)).thenReturn(Mono.just(1L));
 
@@ -107,16 +121,15 @@ class SpotifyIngestServiceTest {
         when(trackLyricsRepo.upsert(lyricRows)).thenReturn(Mono.just(1L));
         when(audioRepo.upsertAudioFeatures(audioRows)).thenReturn(Mono.just(1L));
 
-        // transactional passthrough (실제 트랜잭션 대신 인자로 받은 Mono를 그대로 반환)
+        // transactional passthrough
         when(tx.transactional(any(Mono.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
         // when / then
         StepVerifier.create(service.ingestBatch(batch))
-                .assertNext(v -> assertNotNull(v)) // 마지막 단계의 Long이 나오면 OK
+                .assertNext(v -> assertNotNull(v))
                 .verifyComplete();
 
-        // tx 적용 확인
         verify(tx, times(1)).transactional(any(Mono.class));
 
         // 호출 순서 검증
@@ -133,20 +146,20 @@ class SpotifyIngestServiceTest {
 
         inOrder.verify(mapper).extract(batch);
 
-        inOrder.verify(artistRepo).insertIgnore(artistNames);
-        inOrder.verify(artistRepo).fetchArtistIdsByName(artistNames);
+        inOrder.verify(artistRepo).insertIgnoreByKey(artistSeeds);
+        inOrder.verify(artistRepo).fetchArtistIdsByKey(ex.artistKeys());
 
-        inOrder.verify(albumRepo).upsert(albums);
-        inOrder.verify(albumRepo).fetchAlbumIdsByName(albums);
+        inOrder.verify(albumRepo).upsertByKey(albumSeeds);
+        inOrder.verify(albumRepo).fetchAlbumIdsByKey(ex.albumKeys());
 
-        inOrder.verify(mapper).buildAlbumArtistRows(batch, artistIdMap, albumIdMap);
+        inOrder.verify(mapper).buildAlbumArtistRows(batch, artistIdByKey, albumIdByKey);
         inOrder.verify(albumArtistRepo).insertIgnore(aaRows);
 
-        inOrder.verify(mapper).buildTrackRows(batch, albumIdMap);
+        inOrder.verify(mapper).buildTrackRows(batch, albumIdByKey);
         inOrder.verify(trackRepo).upsert(trackRows);
         inOrder.verify(trackRepo).fetchTrackIdsByHash(hashes);
 
-        inOrder.verify(mapper).buildTrackRelations(batch, trackRows, trackIdMap, artistIdMap);
+        inOrder.verify(mapper).buildTrackRelations(batch, trackRows, trackIdMap, artistIdByKey);
 
         inOrder.verify(trackArtistRepo).insertIgnore(taRows);
         inOrder.verify(trackLyricsRepo).upsert(lyricRows);
@@ -154,8 +167,11 @@ class SpotifyIngestServiceTest {
     }
 
     /**
-     * 중간 단계(artistRepo.fetchArtistIdsByName)에서 에러가 발생하면
-     * 에러가 전파되고 이후 단계가 호출되지 않는지 검증한다.
+     * 중간 단계(artistId 조회)에서 에러가 발생하면:
+     * <ul>
+     *   <li>에러가 그대로 전파된다.</li>
+     *   <li>이후 단계(album/track/relations)는 호출되지 않는다.</li>
+     * </ul>
      */
     @DisplayName("중간 단계에서 에러가 발생하면 이후 단계가 호출되지 않는지 검증")
     @Test
@@ -182,13 +198,13 @@ class SpotifyIngestServiceTest {
 
         List<TrackRaw> batch = List.of(new TrackRaw());
 
-        List<String> artistNames = List.of("IU");
-        List<AlbumRow> albums = List.of();
+        var artistSeeds = List.of(new IngestSeeds.ArtistSeed("kIU", "IU"));
+        var albumSeeds = List.<IngestSeeds.AlbumSeed>of();
 
-        when(mapper.extract(batch)).thenReturn(new TrackRawBatchMapper.BatchExtract(artistNames, albums));
+        when(mapper.extract(batch)).thenReturn(new TrackRawBatchMapper.BatchExtract(artistSeeds, albumSeeds));
 
-        when(artistRepo.insertIgnore(artistNames)).thenReturn(Mono.just(1L));
-        when(artistRepo.fetchArtistIdsByName(artistNames)).thenReturn(Mono.error(new RuntimeException("fail")));
+        when(artistRepo.insertIgnoreByKey(artistSeeds)).thenReturn(Mono.just(1L));
+        when(artistRepo.fetchArtistIdsByKey(List.of("kIU"))).thenReturn(Mono.error(new RuntimeException("fail")));
 
         when(tx.transactional(any(Mono.class))).thenAnswer(inv -> inv.getArgument(0));
 

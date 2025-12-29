@@ -1,5 +1,7 @@
 package com.musicinsights.spotifycatalog.infrastructure.mapper;
 
+import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.IngestSeeds;
+import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.NormalizeUtils;
 import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.TrackRaw;
 import com.musicinsights.spotifycatalog.infrastructure.persistence.r2dbc.row.*;
 import org.junit.jupiter.api.DisplayName;
@@ -12,25 +14,26 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * {@link TrackRawBatchMapper} 단위 테스트.
+ * {@link TrackRawBatchMapper} 단위 테스트 (key/seed 기반).
  *
- * <p>NDJSON 원본 입력({@link TrackRaw})으로부터
- * 정규화된 아티스트/앨범 추출, 관계 테이블 row 생성, 트랙 row 생성 로직을 검증한다.</p>
+ * <p>{@link TrackRaw} 입력으로부터
+ * seed(artist/album) 추출, 관계 row 생성(album_artist/track_artist),
+ * 트랙 row 생성(track), 부가 row 생성(lyrics/audio) 로직을 검증한다.</p>
  */
-@DisplayName("배치 mapper 테스트")
+@DisplayName("배치 mapper 테스트 (key/seed 기반)")
 class TrackRawBatchMapperTest {
 
-    /** 테스트 대상 매퍼 */
     private final TrackRawBatchMapper mapper = new TrackRawBatchMapper();
 
     /**
-     * extract가 아티스트/앨범을 정규화(trim 등)하고 distinct 처리하여 수집하는지 검증한다.
-     *
-     * <p>빈 문자열/공백 앨범은 제외되고, 동일 아티스트/앨범은 중복 제거되어야 한다.</p>
+     * extract가 artist/album 값을 정규화하고,
+     * key 기준으로 중복 제거된 seed 목록을 수집하는지 검증한다.
+     * <p>
+     * album이 blank인 경우 album seed는 생성되지 않는다.
      */
-    @DisplayName("extract가 아티스트/앨범을 정규화(trim 등)하고 distinct 처리하여 수집하는지 검증")
+    @DisplayName("extract가 아티스트/앨범을 정규화하고 key 기준 distinct seed로 수집하는지 검증")
     @Test
-    void extract_collectsDistinctNormalizedArtists_andAlbums() {
+    void extract_collectsDistinctSeeds_byKey_andSkipsBlankAlbum() {
         // given
         TrackRaw r1 = raw()
                 .artists(" IU , BTS ")
@@ -39,36 +42,43 @@ class TrackRawBatchMapperTest {
                 .build();
 
         TrackRaw r2 = raw()
-                .artists("IU") // duplicate
-                .album("AlbumA") // duplicate
+                .artists("IU")     // duplicate
+                .album("AlbumA")   // duplicate
                 .releaseDate("2020-01-01")
                 .build();
 
         TrackRaw r3 = raw()
                 .artists("NewJeans")
-                .album("  ") // blank -> filtered out
-                .releaseDate("")
+                .album("  ")       // blank -> filtered out
+                .releaseDate("")   // invalid -> null
                 .build();
 
         var out = mapper.extract(List.of(r1, r2, r3));
 
-        // artistNames: IU, BTS, NewJeans (정규화+distinct)
-        assertTrue(out.artistNames().contains("IU"));
-        assertTrue(out.artistNames().contains("BTS"));
-        assertTrue(out.artistNames().contains("NewJeans"));
-        assertEquals(3, out.artistNames().size());
+        // artists: IU, BTS, NewJeans
+        assertEquals(3, out.artists().size());
+        assertTrue(out.artists().stream().anyMatch(s -> s.name().equals("IU")));
+        assertTrue(out.artists().stream().anyMatch(s -> s.name().equals("BTS")));
+        assertTrue(out.artists().stream().anyMatch(s -> s.name().equals("NewJeans")));
+
+        // artist key도 채워져 있어야 함
+        out.artists().forEach(s -> assertNotNull(s.key()));
 
         // albums: AlbumA(2020-01-01)만 남아야 함
         assertEquals(1, out.albums().size());
-        assertEquals(new AlbumRow("AlbumA", LocalDate.of(2020, 1, 1)), out.albums().get(0));
+        IngestSeeds.AlbumSeed a = out.albums().get(0);
+        assertEquals("AlbumA", a.album().name());
+        assertEquals(LocalDate.of(2020, 1, 1), a.album().releaseDate());
+        assertNotNull(a.key());
     }
 
     /**
-     * buildAlbumArtistRows가 앨범ID/아티스트ID가 존재하는 경우에만 매핑 row를 생성하는지 검증한다.
-     *
-     * <p>artistIdMap 또는 albumIdMap에 없는 값은 결과에서 스킵되어야 한다.</p>
+     * buildAlbumArtistRows가 albumKey/artistKey로 ID 맵을 조회하여
+     * album_artist 매핑 row를 생성하는지 검증한다.
+     * <p>
+     * artistIdByKey 또는 albumIdByKey에 존재하지 않는 key는 스킵된다.
      */
-    @DisplayName("buildAlbumArtistRows가 앨범ID/아티스트ID가 존재하는 경우에만 매핑 row를 생성하는지 검증")
+    @DisplayName("buildAlbumArtistRows가 albumKey/artistKey로 ID 조회해서 매핑 row를 생성(없는 것은 스킵)")
     @Test
     void buildAlbumArtistRows_buildsPairs_whenIdsExist_andSkipsMissing() {
         // given batch
@@ -80,17 +90,21 @@ class TrackRawBatchMapperTest {
 
         List<TrackRaw> batch = List.of(r1);
 
-        Map<String, Long> artistIdMap = Map.of(
-                "IU", 10L,
-                "BTS", 11L
-                // Unknown intentionally missing
+        String kIU = NormalizeUtils.artistKey("IU");
+        String kBTS = NormalizeUtils.artistKey("BTS");
+
+        Map<String, Long> artistIdByKey = Map.of(
+                kIU, 10L,
+                kBTS, 11L
         );
 
-        AlbumRow albumKey = new AlbumRow("AlbumA", LocalDate.of(2020, 1, 1));
-        Map<AlbumRow, Long> albumIdMap = Map.of(albumKey, 100L);
+        String ak = NormalizeUtils.albumKey("AlbumA", LocalDate.of(2020, 1, 1));
+        Map<String, Long> albumIdByKey = Map.of(
+                ak, 100L
+        );
 
         // when
-        List<AlbumArtistRow> rows = mapper.buildAlbumArtistRows(batch, artistIdMap, albumIdMap);
+        List<AlbumArtistRow> rows = mapper.buildAlbumArtistRows(batch, artistIdByKey, albumIdByKey);
 
         // then: IU, BTS만 들어가야 함
         assertEquals(2, rows.size());
@@ -99,10 +113,37 @@ class TrackRawBatchMapperTest {
     }
 
     /**
-     * buildTrackRows가 트랙 타이틀 null을 빈 문자열로 처리하고,
-     * 앨범ID 매핑 및 해시 생성이 수행되는지 검증한다.
+     * buildAlbumArtistRows는 album 값이 blank인 경우
+     * 조인 row 생성을 수행하지 않고 빈 결과를 반환하는지 검증한다.
      */
-    @DisplayName("buildTrackRows가 트랙 타이틀 null을 빈 문자열로 처리, 앨범ID 매핑 및 해시 생성이 수행되는지 검증")
+    @DisplayName("buildAlbumArtistRows는 Album이 빈 값이면 조용히 스킵한다")
+    @Test
+    void buildAlbumArtistRows_skips_whenAlbumBlank() {
+        TrackRaw r = raw()
+                .artists("IU, BTS")
+                .album("")
+                .releaseDate(null)
+                .build();
+
+        String kIU = NormalizeUtils.artistKey("IU");
+        String kBTS = NormalizeUtils.artistKey("BTS");
+
+        Map<String, Long> artistIdByKey = Map.of(kIU, 10L, kBTS, 11L);
+        Map<String, Long> albumIdByKey = Map.of();
+
+        List<AlbumArtistRow> rows = mapper.buildAlbumArtistRows(List.of(r), artistIdByKey, albumIdByKey);
+        assertTrue(rows.isEmpty());
+    }
+
+    /**
+     * buildTrackRows가 다음을 수행하는지 검증한다.
+     * <ul>
+     *   <li>title(song)이 null이면 빈 문자열로 치환한다.</li>
+     *   <li>albumKey를 통해 albumId를 매핑한다.</li>
+     *   <li>track_hash를 생성하고 hashes 목록을 반환한다.</li>
+     * </ul>
+     */
+    @DisplayName("buildTrackRows가 title null을 \"\"로 처리, albumKey로 albumId 매핑 및 해시 생성 수행")
     @Test
     void buildTrackRows_setsTitleEmptyIfNull_andMapsAlbumId_andProducesHashes() {
         // given
@@ -114,15 +155,15 @@ class TrackRawBatchMapperTest {
                 .length("03:47")
                 .genre("pop")
                 .emotion("happy")
-                .explicit("FALSE")
+                .explicit("Yes")  // parseExplicit는 Yes만 true
                 .popularity(55)
                 .build();
 
-        AlbumRow albumKey = new AlbumRow("AlbumA", LocalDate.of(2020, 1, 1));
-        Map<AlbumRow, Long> albumIdMap = Map.of(albumKey, 100L);
+        String ak = NormalizeUtils.albumKey("AlbumA", LocalDate.of(2020, 1, 1));
+        Map<String, Long> albumIdByKey = Map.of(ak, 100L);
 
         // when
-        TrackRawBatchMapper.TrackBuild out = mapper.buildTrackRows(List.of(r1), albumIdMap);
+        TrackRawBatchMapper.TrackBuild out = mapper.buildTrackRows(List.of(r1), albumIdByKey);
 
         // then
         assertEquals(1, out.trackRows().size());
@@ -133,18 +174,20 @@ class TrackRawBatchMapperTest {
         assertFalse(tr.trackHash().isBlank());
         assertEquals("", tr.title());              // null -> ""
         assertEquals(100L, tr.albumId());          // mapped
-        assertEquals("03:47", tr.durationStr());   // norm된 원본 보존
+        assertEquals("03:47", tr.durationStr());   // 원본 보존
+        assertTrue(tr.explicit());                 // Yes -> true
     }
 
     /**
-     * buildTrackRelations가 trackIdMap/artistIdMap을 기반으로
-     * track_artist, track_lyrics, audio_feature row를 생성하는지 검증한다.
-     *
-     * <p>아티스트 매핑이 없는 경우(track_artist)는 스킵되고,
-     * 가사는 null이면 생성되지 않으며,
-     * 오디오 row는 입력 트랙 수만큼 생성되는(코드 정책) 시나리오를 검증한다.</p>
+     * buildTrackRelations가 trackIdMap/artistIdByKey를 기반으로
+     * 관계 테이블 및 부가 테이블 row를 생성하는지 검증한다.
+     * <ul>
+     *   <li>track_artist: 존재하는 artistId만 생성</li>
+     *   <li>track_lyrics: text가 유효할 때만 생성(정규화 포함)</li>
+     *   <li>audio_feature: 각 track에 대해 row 생성(필드 null 허용)</li>
+     * </ul>
      */
-    @DisplayName("buildTrackRelations가 trackIdMap/artistIdMap을 기반으로 row 생성 검증")
+    @DisplayName("buildTrackRelations가 trackIdMap/artistIdByKey 기반으로 row 생성 검증")
     @Test
     void buildTrackRelations_buildsArtistsLyricsAudio_usingTrackIdAndArtistIdMaps() {
         // given: batch 2개
@@ -168,7 +211,7 @@ class TrackRawBatchMapperTest {
                 .build();
 
         TrackRaw r2 = raw()
-                .artists("Unknown") // artistIdMap에 없음
+                .artists("Unknown") // artistIdByKey에 없음
                 .song("Song2")
                 .album("AlbumA")
                 .releaseDate("2020-01-01")
@@ -179,8 +222,7 @@ class TrackRawBatchMapperTest {
 
         List<TrackRaw> batch = List.of(r1, r2);
 
-        // trackRows는 buildTrackRows 결과와 "인덱스 정렬이 같다"는 전제라,
-        // 테스트에서는 최소 필드만 맞춰서 직접 생성
+        // trackRows는 인덱스 정렬이 같다는 전제, 최소만 맞춰서 직접 생성
         TrackRow t1 = new TrackRow("h1", "Song1", null, null, null, null, false, null, null);
         TrackRow t2 = new TrackRow("h2", "Song2", null, null, null, null, false, null, null);
         List<TrackRow> trackRows = List.of(t1, t2);
@@ -190,21 +232,23 @@ class TrackRawBatchMapperTest {
                 "h2", 2000L
         );
 
-        Map<String, Long> artistIdMap = Map.of(
-                "IU", 10L,
-                "BTS", 11L
+        String kIU = NormalizeUtils.artistKey("IU");
+        String kBTS = NormalizeUtils.artistKey("BTS");
+        Map<String, Long> artistIdByKey = Map.of(
+                kIU, 10L,
+                kBTS, 11L
         );
 
         // when
         TrackRawBatchMapper.TrackRelations rel =
-                mapper.buildTrackRelations(batch, trackRows, trackIdMap, artistIdMap);
+                mapper.buildTrackRelations(batch, trackRows, trackIdMap, artistIdByKey);
 
         // then: track_artist는 r1의 IU,BTS만 2개
         assertEquals(2, rel.trackArtistRows().size());
         assertTrue(rel.trackArtistRows().contains(new TrackArtistRow(1000L, 10L)));
         assertTrue(rel.trackArtistRows().contains(new TrackArtistRow(1000L, 11L)));
 
-        // lyrics는 r1만 (norm으로 공백 제거되어 저장)
+        // lyrics는 r1만 (norm으로 trim)
         assertEquals(1, rel.lyricsRows().size());
         assertEquals(new TrackLyricsRow(1000L, "hello lyrics"), rel.lyricsRows().get(0));
 
@@ -225,17 +269,18 @@ class TrackRawBatchMapperTest {
     }
 
     /**
-     * TrackRaw 테스트 데이터 생성을 위한 빌더 엔트리.
-    *
-     * @return 테스트용 TrackRawBuilder
+     * {@link TrackRaw} 빌더를 생성한다.
+     *
+     * @return 테스트용 {@link TrackRawBuilder}
      */
     private static TrackRawBuilder raw() {
         return new TrackRawBuilder();
     }
 
     /**
-     * 테스트 편의용 {@link TrackRaw} 빌더.
-     *
+     * 테스트 코드에서 {@link TrackRaw}를 간단히 생성하기 위한 빌더.
+     * <p>
+     * NDJSON 역직렬화 형태(필드 직접 할당)를 가정한다.
      */
     private static class TrackRawBuilder {
         String artists;
