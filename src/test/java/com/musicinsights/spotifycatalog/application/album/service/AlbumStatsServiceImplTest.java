@@ -2,10 +2,10 @@ package com.musicinsights.spotifycatalog.application.album.service;
 
 import com.musicinsights.spotifycatalog.application.album.dto.response.ArtistAlbumStatsResponse;
 import com.musicinsights.spotifycatalog.application.album.dto.response.ArtistAlbumsResponse;
-import com.musicinsights.spotifycatalog.application.album.pagination.KeysetPageAssembler;
+import com.musicinsights.spotifycatalog.application.common.pagination.KeysetPageAssembler;
 import com.musicinsights.spotifycatalog.application.album.repository.AlbumStatsRepository;
 import com.musicinsights.spotifycatalog.application.common.error.NotFoundException;
-import com.musicinsights.spotifycatalog.application.common.util.CursorCodec;
+import com.musicinsights.spotifycatalog.application.common.pagination.CursorCodec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
