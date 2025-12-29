@@ -2,9 +2,13 @@ package com.musicinsights.spotifycatalog.infrastructure.input.ndjson;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * ingest 과정에서 반복적으로 사용하는 "정규화/파싱" 유틸리티입니다.
@@ -79,6 +83,55 @@ public class NormalizeUtils {
         return t.isEmpty() ? null : t;
     }
 
+    /** 비교용 문자열 정규화 */
+    static String simplify(String input) {
+        if (input == null) return null;
+
+        String result = Normalizer.normalize(input, Normalizer.Form.NFKC);
+
+        // 소문자화 후 NFD로 분해 → 결합문자 제거
+        result = Normalizer.normalize(result.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+
+        // NFD로 인해 분해된 한글 자모를 다시 완성형으로 합치기
+        result = Normalizer.normalize(result, Normalizer.Form.NFC);
+
+        return result
+                .replaceAll("[\\s\\p{Z}]", "")
+                .replaceAll("[^a-z0-9\\p{IsHangul}]", "");
+    }
+
+    /** Artist 동일성 키 */
+    public static String artistKey(String artistName) {
+        return simplify(norm(artistName));
+    }
+
+    /** Album 동일성 키 */
+    public static String albumKey(String albumName, LocalDate releaseDate) {
+        String nk = simplify(norm(albumName));
+        if (nk == null) return null;
+        return nk + "|" + (releaseDate == null ? "null" : releaseDate.toString());
+    }
+
+    /** Track 자연키 문자열(해시 입력) */
+    public static String trackKey(String title, String album, LocalDate releaseDate, List<String> artistsRaw) {
+        String t = simplify(norm(title));
+        String a = simplify(norm(album));
+        String d = (releaseDate == null) ? "" : releaseDate.toString();
+
+        String artistsKey = artistsRaw.stream()
+                .map(NormalizeUtils::artistKey)
+                .filter(Objects::nonNull)
+                .sorted() // 순서 불변
+                .collect(Collectors.joining(","));
+
+        return String.join("|",
+                t == null ? "" : t,
+                a == null ? "" : a,
+                d,
+                artistsKey
+        );
+    }
     /**
      * "mm:ss" 형태의 길이 문자열을 밀리초(ms)로 변환합니다.
      * <p>

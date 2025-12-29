@@ -1,20 +1,20 @@
 package com.musicinsights.spotifycatalog.bootstrap;
 
+import com.musicinsights.spotifycatalog.application.ingest.SpotifyIngestRebuildService;
 import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.NdjsonLineReader;
 import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.TrackRaw;
 import com.musicinsights.spotifycatalog.application.ingest.SpotifyIngestService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * NDJSON 데이터셋을 배치로 DB에 적재하는 부트스트랩 러너입니다.
- * <p>
- * Spring Profile이 {@code ingest}일 때만 실행되며, 애플리케이션 시작 시 {@link CommandLineRunner}로 동작합니다.
- * <p>
- * 처리 흐름:
- * 라인 읽기 → JSON 파싱 → 배치(buffer) → 배치 단위 ingest → 완료 로그 출력
+ * NDJSON 데이터셋을 배치로 DB에 적재하는 {@link CommandLineRunner}.
+ *
+ * <p>Profile이 {@code ingest}일 때만 활성화된다.</p>
+ * <p>흐름: 라인 읽기 → JSON 파싱 → 800개 버퍼링 → 배치 ingest → 집계 rebuild</p>
  */
 @Component
 @Profile("ingest")
@@ -29,21 +29,27 @@ public class SpotifyNdjsonIngestRunner implements CommandLineRunner {
     /** 배치 단위로 DB 적재를 수행하는 서비스 */
     private final SpotifyIngestService ingestService;
 
+    /** 적재 후 통계/집계 rebuild 서비스 */
+    private final SpotifyIngestRebuildService ingestRebuildService;
+
     /**
      * 의존성을 주입받아 러너를 초기화합니다.
      *
      * @param lineReader NDJSON 라인 리더
      * @param mapper JSON 파서(ObjectMapper)
      * @param ingestService 배치 적재 서비스
+     * @param spotifyIngestRebuildService 통계 rebuild 서비스
      */
     public SpotifyNdjsonIngestRunner(
             NdjsonLineReader lineReader,
             ObjectMapper mapper,
-            SpotifyIngestService ingestService
+            SpotifyIngestService ingestService,
+            SpotifyIngestRebuildService spotifyIngestRebuildService
     ) {
         this.lineReader = lineReader;
         this.mapper = mapper;
         this.ingestService = ingestService;
+        this.ingestRebuildService=spotifyIngestRebuildService;
     }
 
     /**
@@ -65,6 +71,10 @@ public class SpotifyNdjsonIngestRunner implements CommandLineRunner {
                 .concatMap(ingestService::ingestBatch)
                 .doOnNext(n -> System.out.println("Batch done. affected=" + n))
                 .doOnError(e -> System.err.println("Ingest failed: " + e.getMessage()))
+                .then(Mono.defer(() ->
+                        ingestRebuildService.rebuild()
+                                .doOnSuccess(n -> System.out.println("Stats rebuild done. affected=" + n))
+                ))
                 .then()
                 .block();
     }

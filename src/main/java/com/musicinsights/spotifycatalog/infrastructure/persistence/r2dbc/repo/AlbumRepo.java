@@ -1,6 +1,7 @@
 package com.musicinsights.spotifycatalog.infrastructure.persistence.r2dbc.repo;
 
-import com.musicinsights.spotifycatalog.infrastructure.persistence.r2dbc.row.AlbumRow;
+import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.IngestSeeds;
+import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.NormalizeUtils;
 import com.musicinsights.spotifycatalog.infrastructure.persistence.r2dbc.BatchSqlSupport;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Component;
@@ -9,6 +10,7 @@ import reactor.core.publisher.Mono;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * album 테이블에 대한 배치 저장/조회 기능을 제공하는 Repository입니다.
@@ -31,96 +33,88 @@ public class AlbumRepo extends BatchSqlSupport {
     }
 
     /**
-     * 앨범 목록을 배치로 upsert 합니다.
-     * <p>
-     * 동일 키(예: name 유니크/PK 등) 충돌 시 release_date만 갱신합니다.
-     *
-     * @param rows upsert할 앨범 목록
-     * @return 영향을 받은 행 수(배치 합계)
+     * (album_key, name, release_date) 배치 upsert
      */
-    public Mono<Long> upsert(List<AlbumRow> rows) {
-        return chunkedSum(rows, CHUNK, this::upsertOnce);
+    public Mono<Long> upsertByKey(List<IngestSeeds.AlbumSeed> seeds) {
+        return chunkedSum(seeds, CHUNK, this::upsertOnceByKey);
     }
 
-    /**
-     * 주어진 rows를 단일 INSERT ... ON DUPLICATE KEY UPDATE로 실행합니다.
-     *
-     * @param rows upsert할 앨범 목록(비어있지 않음)
-     * @return 영향을 받은 행 수
-     */
-    private Mono<Long> upsertOnce(List<AlbumRow> rows) {
-        if (rows.isEmpty()) return Mono.just(0L);
+    private Mono<Long> upsertOnceByKey(List<IngestSeeds.AlbumSeed> seeds) {
+        if (seeds == null || seeds.isEmpty()) return Mono.just(0L);
+
+        List<IngestSeeds.AlbumSeed> safe = seeds.stream()
+                .filter(s -> s != null
+                        && s.key() != null
+                        && s.album() != null
+                        && s.album().name() != null)
+                .toList();
+        if (safe.isEmpty()) return Mono.just(0L);
 
         StringBuilder sql = new StringBuilder("""
-            INSERT INTO album (name, release_date) VALUES
+            INSERT INTO album (album_key, name, release_date) VALUES
         """);
 
-        for (int i = 0; i < rows.size(); i++) {
+        for (int i = 0; i < safe.size(); i++) {
             if (i > 0) sql.append(",");
-            sql.append("(:n").append(i).append(", :rd").append(i).append(")");
+            sql.append("(:k").append(i)
+                    .append(", :n").append(i)
+                    .append(", :rd").append(i)
+                    .append(")");
         }
 
+        // album_key가 UNIQUE이므로 중복이면 "그대로 유지"
         sql.append("""
             ON DUPLICATE KEY UPDATE
-              release_date = VALUES(release_date)
+              name = name,
+              release_date = release_date
         """);
 
         DatabaseClient.GenericExecuteSpec spec = db.sql(sql.toString());
-        for (int i = 0; i < rows.size(); i++) {
-            AlbumRow r = rows.get(i);
-            spec = spec.bind("n" + i, r.name());
-            spec = bindOrNull(spec, "rd" + i, r.releaseDate(), LocalDate.class);
+        for (int i = 0; i < safe.size(); i++) {
+            IngestSeeds.AlbumSeed s = safe.get(i);
+            spec = spec.bind("k" + i, s.key())
+                    .bind("n" + i, NormalizeUtils.norm(s.album().name()));
+            spec = bindOrNull(spec, "rd" + i, s.album().releaseDate(), LocalDate.class);
         }
 
         return spec.fetch().rowsUpdated();
     }
 
     /**
-     * (name, release_date) 조합으로 album.id를 조회하여 매핑을 반환합니다.
-     * <p>
-     * 입력 rows는 중복 제거 후 WHERE (name, release_date) IN (...) 형태로 한 번에 조회합니다.
-     *
-     * @param rows 조회할 앨범 키 목록
-     * @return AlbumRow(키) -> album.id 매핑
+     * album_key IN (...) 로 id 매핑 조회
+     * @return album_key -> album.id
      */
-    public Mono<Map<AlbumRow, Long>> fetchAlbumIdsByName(List<AlbumRow> rows) {
-        if (rows == null || rows.isEmpty()) {
-            return Mono.just(Map.of());
-        }
+    public Mono<Map<String, Long>> fetchAlbumIdsByKey(List<String> keys) {
+        if (keys == null || keys.isEmpty()) return Mono.just(Map.of());
 
-        // 중복 제거
-        List<AlbumRow> uniq = rows.stream().distinct().toList();
+        List<String> uniq = keys.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (uniq.isEmpty()) return Mono.just(Map.of());
 
         StringBuilder sql = new StringBuilder("""
-        SELECT id, name, release_date
-        FROM album
-        WHERE (name, release_date) IN (
-    """);
-
+            SELECT id, album_key
+            FROM album
+            WHERE album_key IN (
+        """);
         for (int i = 0; i < uniq.size(); i++) {
             if (i > 0) sql.append(",");
-            sql.append("(:n").append(i).append(", :rd").append(i).append(")");
+            sql.append(":k").append(i);
         }
         sql.append(")");
 
         DatabaseClient.GenericExecuteSpec spec = db.sql(sql.toString());
         for (int i = 0; i < uniq.size(); i++) {
-            AlbumRow r = uniq.get(i);
-            spec = spec.bind("n" + i, r.name());
-            spec = bindOrNull(spec, "rd" + i, r.releaseDate(), LocalDate.class);
+            spec = spec.bind("k" + i, uniq.get(i));
         }
 
         return spec
-                .map((row, meta) -> {
-                    AlbumRow key = new AlbumRow(
-                            row.get("name", String.class),
-                            row.get("release_date", LocalDate.class)
-                    );
-                    Long id = row.get("id", Long.class);
-                    return Map.entry(key, id);
-                })
+                .map((row, meta) -> Map.entry(
+                        row.get("album_key", String.class),
+                        row.get("id", Long.class)
+                ))
                 .all()
                 .collectMap(Map.Entry::getKey, Map.Entry::getValue);
     }
-
 }
