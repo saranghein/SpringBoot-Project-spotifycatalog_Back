@@ -2,23 +2,17 @@ spring:
   application:
     name: spotifycatalog
   profiles:
-    default: ingest
-    group:
-      ingest-run: [ ingest, flyway ]
+    default: local
 
-  r2dbc:
-    url: r2dbc:mysql://localhost:3306/spotifycatalog
-    username: root
-    password: root1234
+  sql:
+    init:
+      mode: never
 
-  flyway:
-    enabled: false
+server:
+  port: 8080
 
 springdoc:
-  api-docs:
-    enabled: true
-    path: /v3/api-docs
-
   swagger-ui:
-    enabled: true
     path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs

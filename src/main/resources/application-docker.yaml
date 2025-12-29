@@ -1,18 +1,15 @@
 spring:
+  flyway:
+    enabled: true
   r2dbc:
     url: r2dbc:mysql://mysql:3306/spotifycatalog
     username: app
     password: app
 
-  flyway:
-    enabled: true
-    url: jdbc:mysql://mysql:3306/spotifycatalog
-    user: app
+  datasource:
+    url: jdbc:mysql://mysql:3306/spotifycatalog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&useUnicode=true
+    username: app
     password: app
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
-  sql:
-    init:
-      mode: never
 
-server:
-  port: 8080
