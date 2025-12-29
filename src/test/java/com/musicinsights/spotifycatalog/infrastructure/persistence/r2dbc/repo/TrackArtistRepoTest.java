@@ -1,5 +1,6 @@
 package com.musicinsights.spotifycatalog.infrastructure.persistence.r2dbc.repo;
 
+import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.NormalizeUtils;
 import com.musicinsights.spotifycatalog.infrastructure.persistence.r2dbc.row.TrackArtistRow;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.r2dbc.core.DatabaseClient;
-import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.util.ArrayList;
@@ -23,8 +23,10 @@ import java.util.List;
 @SpringBootTest
 @DisplayName("track artist repo 테스트")
 class TrackArtistRepoTest {
+
     @Autowired
     TrackArtistRepo repo;
+
     @Autowired
     DatabaseClient db;
 
@@ -35,7 +37,6 @@ class TrackArtistRepoTest {
      */
     @BeforeEach
     void clean() {
-        // FK 때문에 자식부터 삭제
         StepVerifier.create(db.sql("DELETE FROM track_artist").fetch().rowsUpdated())
                 .expectNextCount(1).verifyComplete();
 
@@ -57,13 +58,14 @@ class TrackArtistRepoTest {
     void insertIgnore_insertsNewRows() {
         seedTrack(1L);
         seedTrack(2L);
-        seedArtist(10L, "IU");
-        seedArtist(11L, "BTS");
+
+        long iuId = seedArtist("IU");
+        long btsId = seedArtist("BTS");
 
         List<TrackArtistRow> rows = List.of(
-                new TrackArtistRow(1L, 10L),
-                new TrackArtistRow(1L, 11L),
-                new TrackArtistRow(2L, 10L)
+                new TrackArtistRow(1L, iuId),
+                new TrackArtistRow(1L, btsId),
+                new TrackArtistRow(2L, iuId)
         );
 
         StepVerifier.create(repo.insertIgnore(rows))
@@ -75,21 +77,22 @@ class TrackArtistRepoTest {
                 .verifyComplete();
     }
 
+
     /**
-     * 동일 PK(중복 매핑)를 다시 insertIgnore로 넣었을 때 row 수가 증가하지 않는지 검증한다.
-     *
-     * <p>rowsUpdated 값은 환경에 따라 달라질 수 있으므로 COUNT(*) 기반으로 검증한다.</p>
+     * 동일 PK(중복 매핑)를 다시 insertIgnore로 넣어도 PK 중복이 무시되어
+     * row 수가 증가하지 않는지 검증한다.
      */
     @DisplayName("동일 PK(중복 매핑)를 다시 insertIgnore로 넣었을 때 row 수가 증가하지 않는지 검증")
     @Test
     void insertIgnore_duplicatePk_isIgnored_rowCountDoesNotIncrease() {
         seedTrack(1L);
-        seedArtist(10L, "IU");
-        seedArtist(11L, "BTS");
+
+        long iuId = seedArtist("IU");
+        long btsId = seedArtist("BTS");
 
         List<TrackArtistRow> rows = List.of(
-                new TrackArtistRow(1L, 10L),
-                new TrackArtistRow(1L, 11L)
+                new TrackArtistRow(1L, iuId),
+                new TrackArtistRow(1L, btsId)
         );
 
         StepVerifier.create(repo.insertIgnore(rows)).expectNextCount(1).verifyComplete();
@@ -103,23 +106,27 @@ class TrackArtistRepoTest {
                 .expectNext(2L)
                 .verifyComplete();
     }
+
     /**
-     * 입력 건수가 CHUNK 크기를 초과해도 분할 실행되어 정상 삽입되는지 검증한다.
-     *
-     * <p>CHUNK=800 기준으로 801건 매핑을 생성하여 두 번 이상 쿼리가 수행되는 시나리오를 만든다.</p>
+     * 입력 건수가 CHUNK 크기를 초과해도 내부적으로 분할 실행되어
+     * 정상적으로 삽입되는지 검증한다.
      */
     @DisplayName("입력 건수가 CHUNK 크기를 초과해도 분할 실행되어 정상 삽입되는지 검증")
     @Test
     void insertIgnore_overChunkSize_stillWorks() {
         int n = 801; // CHUNK(800) + 1
 
-        // track 하나 + artist n명으로 801개 매핑 만들기
         seedTrack(1L);
-        for (int i = 0; i < n; i++) seedArtist(1000L + i, "a-" + i);
+
+        // artist n명 생성 + id 수집
+        List<Long> artistIds = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            artistIds.add(seedArtist("a-" + i));
+        }
 
         List<TrackArtistRow> rows = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
-            rows.add(new TrackArtistRow(1L, 1000L + i));
+            rows.add(new TrackArtistRow(1L, artistIds.get(i)));
         }
 
         StepVerifier.create(repo.insertIgnore(rows))
@@ -136,7 +143,7 @@ class TrackArtistRepoTest {
      *
      * <p>track DDL 기준 필수 컬럼(track_hash, title)은 NOT NULL 이므로 함께 세팅한다.</p>
      *
-     * @param id track PK
+     * @param id track PK(id)
      */
     private void seedTrack(long id) {
         String hash = String.format("%064x", id); // 64 chars, UNIQUE
@@ -152,24 +159,42 @@ class TrackArtistRepoTest {
     }
 
     /**
-     * 테스트용 artist 레코드를 1건 삽입한다.
+     * 테스트용 artist 레코드를 1건 삽입하고 생성된 id를 반환한다.
      *
-     * <p>테스트 단순화를 위해 id를 명시하여 삽입한다.</p>
+     * <p>artist.name_key는 NOT NULL이므로 함께 삽입한다.</p>
      *
-     * @param id   artist PK
-     * @param name artist name
+     * @param name artist 이름
+     * @return 삽입된 artist id
      */
-    private void seedArtist(long id, String name) {
+    private long seedArtist(String name) {
+        String key = NormalizeUtils.artistKey(name);
+
+        // insert
         StepVerifier.create(
-                db.sql("INSERT INTO artist(id, name) VALUES(?, ?)")
-                        .bind(0, id)
-                        .bind(1, name)
+                db.sql("INSERT INTO artist(name, name_key) VALUES(?, ?)")
+                        .bind(0, name)
+                        .bind(1, key)
                         .fetch()
                         .rowsUpdated()
         ).expectNext(1L).verifyComplete();
+
+        // select id
+        Long id = db.sql("SELECT id FROM artist WHERE name_key=?")
+                .bind(0, key)
+                .map((row, meta) -> row.get("id", Long.class))
+                .one()
+                .block();
+
+        Assertions.assertNotNull(id);
+        return id;
     }
 
-    private Mono<Long> countTrackArtist() {
+    /**
+     * track_artist 테이블의 총 row 수를 조회한다.
+     *
+     * @return track_artist row count
+     */
+    private reactor.core.publisher.Mono<Long> countTrackArtist() {
         return db.sql("SELECT COUNT(*) AS c FROM track_artist")
                 .map((row, meta) -> row.get("c", Long.class))
                 .one();

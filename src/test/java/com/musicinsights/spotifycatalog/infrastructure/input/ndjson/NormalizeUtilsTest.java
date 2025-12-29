@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -13,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>입력 문자열 정규화/파싱 유틸의 기대 동작을 검증한다:
  * 아티스트 분리, 날짜 파싱, explicit 파싱, 문자열 정규화(norm),
- * 길이(mm:ss) 파싱, SHA-256 해시 생성.</p>
+ * 길이(mm:ss) 파싱, SHA-256 해시 생성, simplify/키 생성(artistKey/albumKey/trackKey).</p>
  */
 @DisplayName("정규화 util 테스트")
 class NormalizeUtilsTest {
@@ -177,5 +178,176 @@ class NormalizeUtilsTest {
         String h = NormalizeUtils.sha256Hex("아이유");
         assertEquals(64, h.length());
         assertTrue(h.matches("[0-9a-f]{64}"));
+    }
+
+    /**
+     * simplify는 null 입력에 대해 null을 반환해야 한다.
+     */
+    @Test
+    @DisplayName("simplify: null 입력이면 null 반환")
+    void simplify_null_returnsNull() {
+        assertNull(NormalizeUtils.simplify(null));
+    }
+
+    /**
+     * simplify는 trim/공백 제거, 소문자화, 특수문자 제거를 수행해야 한다.
+     */
+    @Test
+    @DisplayName("simplify: trim/공백 제거 + 소문자화 + 특수문자 제거")
+    void simplify_removesSpacesLowercasesAndStripsSymbols() {
+        // 공백/탭/특수문자 제거, 소문자화
+        assertEquals("helloworld123", NormalizeUtils.simplify("  Hello  World! 123  "));
+        assertEquals("abc", NormalizeUtils.simplify(" A\tB\nC "));
+    }
+
+    /**
+     * simplify는 악센트(결합문자)를 제거해야 한다.
+     */
+    @Test
+    @DisplayName("simplify: 악센트(결합문자) 제거")
+    void simplify_removesDiacritics() {
+        // é -> e
+        assertEquals("beyonce", NormalizeUtils.simplify("Beyoncé"));
+        // ö -> o
+        assertEquals("zoe", NormalizeUtils.simplify("Zoë"));
+    }
+
+    /**
+     * simplify는 한글을 유지하고 기호/이모지를 제거해야 한다.
+     */
+    @Test
+    @DisplayName("simplify: 한글은 유지되고, 기호/이모지는 제거된다")
+    void simplify_keepsKoreanAndRemovesEmoji() {
+        System.out.println("simplify(아이유) = [" + NormalizeUtils.simplify("아이유") + "]");
+        System.out.println("simplify regex result for ascii = [" + NormalizeUtils.simplify("BTS") + "]");
+
+        assertEquals("아이유", NormalizeUtils.simplify("아이유"));
+
+        assertEquals("아이유", NormalizeUtils.simplify("아이유✨"));
+        assertEquals("방탄소년단", NormalizeUtils.simplify("방탄소년단!!!"));
+    }
+
+    /**
+     * artistKey는 null/blank 입력에 대해 null을 반환해야 한다.
+     */
+    @Test
+    @DisplayName("artistKey: null/blank면 null")
+    void artistKey_nullOrBlank_returnsNull() {
+        assertNull(NormalizeUtils.artistKey(null));
+        assertNull(NormalizeUtils.artistKey("   "));
+    }
+
+    /**
+     * artistKey는 의미상 동일한 입력(대소문자/공백/특수문자 차이)을 동일 키로 정규화해야 한다.
+     */
+    @Test
+    @DisplayName("artistKey: 동일 의미(대소문자/공백/특수문자 차이)는 같은 키")
+    void artistKey_normalizesToSameKey() {
+        assertEquals(
+                NormalizeUtils.artistKey("BTS"),
+                NormalizeUtils.artistKey("  b t s!! ")
+        );
+        assertEquals(
+                NormalizeUtils.artistKey("IU"),
+                NormalizeUtils.artistKey(" I.U ")
+        );
+    }
+
+    /**
+     * albumKey는 albumName이 null/blank인 경우 null을 반환해야 한다.
+     */
+    @Test
+    @DisplayName("albumKey: albumName blank면 null")
+    void albumKey_blankName_returnsNull() {
+        assertNull(NormalizeUtils.albumKey("   ", LocalDate.of(2020, 1, 1)));
+        assertNull(NormalizeUtils.albumKey(null, LocalDate.of(2020, 1, 1)));
+    }
+
+    /**
+     * albumKey는 같은 앨범명/같은 날짜면 같은 키를 생성하고,
+     * 날짜가 다르면 다른 키를 생성해야 한다.
+     */
+    @Test
+    @DisplayName("albumKey: 같은 앨범명/같은 날짜면 같은 키, 날짜가 다르면 다른 키")
+    void albumKey_sameNameSameDate_sameKey_differentDate_differentKey() {
+        LocalDate d1 = LocalDate.of(2020, 1, 1);
+        LocalDate d2 = LocalDate.of(2021, 1, 1);
+
+        String k1 = NormalizeUtils.albumKey(" Album A ", d1);
+        String k2 = NormalizeUtils.albumKey("ALBUM-A!!", d1);
+        String k3 = NormalizeUtils.albumKey("Album A", d2);
+
+        assertEquals(k1, k2);
+        assertNotEquals(k1, k3);
+    }
+
+    /**
+     * albumKey는 releaseDate가 null인 경우 날짜 토큰에 "null"을 포함해야 한다.
+     */
+    @Test
+    @DisplayName("albumKey: releaseDate null은 'null'로 포함된다")
+    void albumKey_nullDate_includesNullToken() {
+        String k = NormalizeUtils.albumKey("AlbumA", null);
+        assertTrue(k.endsWith("|null"));
+    }
+
+    /**
+     * trackKey는 아티스트 순서가 달라도 동일 키가 생성되도록(정렬) 처리해야 한다.
+     */
+    @Test
+    @DisplayName("trackKey: 아티스트 순서가 달라도 동일 키(정렬)로 생성된다")
+    void trackKey_artistOrderDoesNotMatter() {
+        LocalDate d = LocalDate.of(2020, 1, 1);
+
+        String k1 = NormalizeUtils.trackKey(
+                "Song A",
+                "Album A",
+                d,
+                List.of("IU", "BTS")
+        );
+
+        String k2 = NormalizeUtils.trackKey(
+                "song a",
+                " album-a!! ",
+                d,
+                List.of("BTS", "IU")
+        );
+
+        assertEquals(k1, k2);
+    }
+
+    /**
+     * trackKey는 title/album이 null이어도 키를 생성해야 하며,
+     * artists 입력에서 null/blank는 제거되어야 한다.
+     */
+    @Test
+    @DisplayName("trackKey: title/album null이면 빈 문자열로 들어가고, artists는 null/blank가 제거된다")
+    void trackKey_allowsNullTitleAlbum_andFiltersNullArtists() {
+        String k = NormalizeUtils.trackKey(
+                null,
+                null,
+                null,
+                Arrays.asList("IU", null, "  ")
+        );
+
+        assertNotNull(k);
+        assertTrue(k.endsWith("iu")); // IU만 남아야 함
+    }
+
+    /**
+     * trackKey는 releaseDate가 null인 경우 날짜 파트가 빈 문자열로 생성되어야 한다.
+     */
+    @Test
+    @DisplayName("trackKey: releaseDate null이면 날짜 파트는 빈 문자열")
+    void trackKey_nullDate_datePartEmpty() {
+        String k = NormalizeUtils.trackKey(
+                "Song",
+                "Album",
+                null,
+                List.of("IU")
+        );
+
+        // "song|album||iu" 형태를 기대 (날짜 파트가 비어있어서 ||)
+        assertTrue(k.contains("||"));
     }
 }
