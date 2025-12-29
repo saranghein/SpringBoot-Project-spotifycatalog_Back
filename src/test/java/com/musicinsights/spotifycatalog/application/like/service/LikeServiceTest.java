@@ -19,7 +19,7 @@ import static org.mockito.Mockito.*;
 
 
 /**
- * {@link LikeService} 단위 테스트.
+ * {@link LikeServiceImpl} 단위 테스트.
  *
  * <p>의존 저장소/트랜잭션 오퍼레이터는 Mockito로 mocking하고,
  * Reactor {@link StepVerifier}로 반환 Publisher의 값/종료/에러를 검증한다.</p>
@@ -39,7 +39,7 @@ class LikeServiceTest {
         this.eventRepo = mock(LikeEventRepository.class);
         this.tx = mock(TransactionalOperator.class);
 
-        this.service = new LikeService(counterRepo, eventRepo, tx);
+        this.service = new LikeServiceImpl(counterRepo, eventRepo, tx);
     }
 
     /**
@@ -105,7 +105,7 @@ class LikeServiceTest {
 
     /**
      * 최근 windowMinutes 동안의 좋아요 증가 Top 목록 조회 결과가
-     * {@link LikeIncResponse} -> {@link TopLikeResponse}로 올바르게 매핑되는지 검증한다.
+     * {@link TopLikeResponse} -> {@link TopLikeResponse}로 올바르게 매핑되는지 검증한다.
      */
     @Test
     @DisplayName("Top 조회 요청 시 이벤트 저장소 결과가 TopLikeResponse로 매핑되어 반환되는지 검증")
