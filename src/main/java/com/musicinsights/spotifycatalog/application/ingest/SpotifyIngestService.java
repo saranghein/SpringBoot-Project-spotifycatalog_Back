@@ -1,7 +1,6 @@
 package com.musicinsights.spotifycatalog.application.ingest;
 
 import com.musicinsights.spotifycatalog.infrastructure.persistence.r2dbc.row.AlbumArtistRow;
-import com.musicinsights.spotifycatalog.infrastructure.persistence.r2dbc.row.AlbumRow;
 import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.TrackRaw;
 import com.musicinsights.spotifycatalog.infrastructure.mapper.TrackRawBatchMapper;
 import org.springframework.stereotype.Service;
@@ -58,17 +57,17 @@ public class SpotifyIngestService {
      * @return 배치 처리 결과(rowsUpdated 등) 값(최종 단계의 결과)
      */
     public Mono<Long> ingestBatch(List<TrackRaw> batch) {
-        TrackRawBatchMapper.BatchExtract ex = mapper.extract(batch);
+        var ex = mapper.extract(batch);
 
         Mono<Long> work =
-                ingestDb.artist.insertIgnore(ex.artistNames())
-                        .then(ingestDb.artist.fetchArtistIdsByName(ex.artistNames()))
-                        .flatMap(artistIdMap ->
-                                ingestDb.album.upsert(ex.albums())
-                                        .then(ingestDb.album.fetchAlbumIdsByName(ex.albums()))
-                                        .flatMap(albumIdMap ->
-                                                ingestAlbumArtist(batch, artistIdMap, albumIdMap)
-                                                        .then(ingestTracksAndRelations(batch, artistIdMap, albumIdMap))
+                ingestDb.artist.insertIgnoreByKey(ex.artists())
+                        .then(ingestDb.artist.fetchArtistIdsByKey(ex.artistKeys()))
+                        .flatMap(artistIdByKey ->
+                                ingestDb.album.upsertByKey(ex.albums())
+                                        .then(ingestDb.album.fetchAlbumIdsByKey(ex.albumKeys()))
+                                        .flatMap(albumIdByKey ->
+                                                ingestAlbumArtist(batch, artistIdByKey, albumIdByKey)
+                                                        .then(ingestTracksAndRelations(batch, artistIdByKey, albumIdByKey))
                                         )
                         );
 
@@ -79,16 +78,16 @@ public class SpotifyIngestService {
      * album과 artist 간 조인 매핑(album_artist)을 생성하여 저장합니다.
      *
      * @param batch TrackRaw 배치
-     * @param artistIdMap artistName -> artistId 매핑
-     * @param albumIdMap AlbumRow -> albumId 매핑
+     * @param artistIdByKey artistName -> artistId 매핑
+     * @param albumIdByKey AlbumRow -> albumId 매핑
      * @return 처리 결과(rowsUpdated 등)
      */
     private Mono<Long> ingestAlbumArtist(
             List<TrackRaw> batch,
-            Map<String, Long> artistIdMap,
-            Map<AlbumRow, Long> albumIdMap
+            Map<String, Long> artistIdByKey,
+            Map<String, Long> albumIdByKey
     ) {
-        List<AlbumArtistRow> aaRows = mapper.buildAlbumArtistRows(batch, artistIdMap, albumIdMap);
+        List<AlbumArtistRow> aaRows = mapper.buildAlbumArtistRows(batch, artistIdByKey, albumIdByKey);
         return ingestDb.albumArtist.insertIgnore(aaRows);
     }
 
@@ -96,22 +95,21 @@ public class SpotifyIngestService {
      * 트랙(track)을 저장한 뒤, track_id를 조회하여 관계/부가 데이터(track_artist, lyrics, audio_feature)를 저장합니다.
      *
      * @param batch TrackRaw 배치
-     * @param artistIdMap artistName -> artistId 매핑
-     * @param albumIdMap AlbumRow -> albumId 매핑
+     * @param artistIdByKey artistName -> artistId 매핑
+     * @param albumIdByKey AlbumRow -> albumId 매핑
      * @return 처리 결과(rowsUpdated 등)
      */
     private Mono<Long> ingestTracksAndRelations(
             List<TrackRaw> batch,
-            Map<String, Long> artistIdMap,
-            Map<AlbumRow, Long> albumIdMap
+            Map<String, Long> artistIdByKey,
+            Map<String, Long> albumIdByKey
     ) {
-        TrackRawBatchMapper.TrackBuild tb = mapper.buildTrackRows(batch, albumIdMap);
+        var tb = mapper.buildTrackRows(batch, albumIdByKey);
 
         return ingestDb.track.upsert(tb.trackRows())
                 .then(ingestDb.track.fetchTrackIdsByHash(tb.hashes()))
                 .flatMap(trackIdMap -> {
-                    TrackRawBatchMapper.TrackRelations rel =
-                            mapper.buildTrackRelations(batch, tb.trackRows(), trackIdMap, artistIdMap);
+                    var rel = mapper.buildTrackRelations(batch, tb.trackRows(), trackIdMap, artistIdByKey);
 
                     return ingestDb.trackArtist.insertIgnore(rel.trackArtistRows())
                             .then(ingestDb.trackLyrics.upsert(rel.lyricsRows()))

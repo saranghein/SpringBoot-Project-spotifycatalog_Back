@@ -50,28 +50,33 @@ public class AlbumArtistRepo extends BatchSqlSupport {
     private Mono<Long> insertOnce(List<AlbumArtistRow> rows) {
         if (rows.isEmpty()) return Mono.just(0L);
 
-        StringBuilder sql = new StringBuilder("""
-            INSERT INTO album_artist (album_id, artist_id) VALUES
-        """);
+        List<AlbumArtistRow> safe = rows.stream()
+                .filter(r -> r.albumId() != null && r.artistId() != null)
+                .toList();
+        if (safe.isEmpty()) return Mono.just(0L);
 
-        for (int i = 0; i < rows.size(); i++) {
+        StringBuilder sql = new StringBuilder("""
+        INSERT INTO album_artist (album_id, artist_id) VALUES
+    """);
+
+        for (int i = 0; i < safe.size(); i++) {
             if (i > 0) sql.append(",");
-            sql.append("(:aid").append(i).append(", :rid").append(i).append(")");
+            sql.append("(:alb").append(i).append(", :art").append(i).append(")");
         }
 
-        // PK 중복이면 아무것도 안 하게
         sql.append("""
-            ON DUPLICATE KEY UPDATE
-              album_id = album_id
-        """);
+        ON DUPLICATE KEY UPDATE
+          album_id = album_id
+    """);
 
         DatabaseClient.GenericExecuteSpec spec = db.sql(sql.toString());
-        for (int i = 0; i < rows.size(); i++) {
-            AlbumArtistRow r = rows.get(i);
-            spec = spec.bind("aid" + i, r.albumId())
-                    .bind("rid" + i, r.artistId());
+        for (int i = 0; i < safe.size(); i++) {
+            AlbumArtistRow r = safe.get(i);
+            spec = spec.bind("alb" + i, r.albumId())
+                    .bind("art" + i, r.artistId());
         }
 
         return spec.fetch().rowsUpdated();
     }
+
 }

@@ -10,33 +10,37 @@ SET FOREIGN_KEY_CHECKS = 0;
 CREATE TABLE IF NOT EXISTS artist (
                                       id          BIGINT PRIMARY KEY AUTO_INCREMENT,
                                       name        VARCHAR(255) NOT NULL,
+                                      name_key   VARCHAR(255) NOT NULL,
                                       created_at  TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
-                                      UNIQUE KEY uk_artist_name (name)
+                                      UNIQUE KEY uk_artist_name_key (name_key),
+                                      KEY idx_artist_name (name),
+                                      KEY idx_artist_name_key (name_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS album (
                                      id           BIGINT PRIMARY KEY AUTO_INCREMENT,
                                      name         VARCHAR(255) NOT NULL,
                                      release_date DATE NULL,
-
+                                     album_key    VARCHAR(300) NOT NULL,
     -- 연도 필터/그룹 최적화용: release_date에서 연도만 뽑아 저장(생성 컬럼)
                                      release_year SMALLINT
                                          GENERATED ALWAYS AS (YEAR(release_date)) STORED,
 
                                      created_at   TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
-    -- 같은 이름 앨범이 여러 번 나올 수 있지만, 데이터셋 특성상 (name, release_date)로 중복을 강하게 줄임
-                                     UNIQUE KEY uk_album_name_date (name, release_date),
+                                    UNIQUE KEY uk_album_album_key (album_key),
 
-    -- 집계/필터 최적화
-                                     KEY idx_album_release_date (release_date),
-                                     KEY idx_album_release_year (release_year),
+                                    -- 집계/필터 최적화
+                                    KEY idx_album_release_date (release_date),
+                                    KEY idx_album_release_year (release_year),
 
-    --  연도 필터 후 album_id 조인까지 같이 빠르게
-                                     KEY idx_album_year_id (release_year, id),
+                                    -- 연도 필터 후 album_id 조인까지 빠르게
+                                    KEY idx_album_year_id (release_year, id),
 
-                                     KEY idx_album_name (name)
+                                    -- 조회 보조
+                                    KEY idx_album_name (name),
+                                    KEY idx_album_album_key (album_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -171,5 +175,19 @@ CREATE TABLE IF NOT EXISTS track_like_counter (
                                                   CONSTRAINT fk_like_counter_track
                                                       FOREIGN KEY (track_id) REFERENCES track(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 연도별 앨범 수 빠른 조회를 위한 테이블
+CREATE TABLE IF NOT EXISTS artist_album_count_year (
+                                                       release_year SMALLINT NOT NULL,
+                                                       artist_id    BIGINT NOT NULL,
+                                                       album_count  INT NOT NULL,
+
+                                                       PRIMARY KEY (release_year, artist_id),
+
+    KEY idx_year_count_artist (release_year, album_count DESC, artist_id ASC),
+
+    CONSTRAINT fk_aacy_artist
+    FOREIGN KEY (artist_id) REFERENCES artist(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;

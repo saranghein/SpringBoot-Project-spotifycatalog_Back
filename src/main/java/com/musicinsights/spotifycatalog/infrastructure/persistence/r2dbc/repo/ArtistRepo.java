@@ -1,5 +1,7 @@
 package com.musicinsights.spotifycatalog.infrastructure.persistence.r2dbc.repo;
 
+import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.IngestSeeds;
+import com.musicinsights.spotifycatalog.infrastructure.input.ndjson.NormalizeUtils;
 import com.musicinsights.spotifycatalog.infrastructure.persistence.r2dbc.BatchSqlSupport;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Component;
@@ -110,6 +112,83 @@ public class ArtistRepo extends BatchSqlSupport {
         return spec
                 .map((row, meta) -> Map.entry(
                         row.get("name", String.class),
+                        row.get("id", Long.class)
+                ))
+                .all()
+                .collectMap(Map.Entry::getKey, Map.Entry::getValue);
+    }
+
+    /**
+     * (name_key, name) 배치 insert (중복 key는 무시)
+     */
+    public Mono<Long> insertIgnoreByKey(List<IngestSeeds.ArtistSeed> seeds) {
+        return chunkedSum(seeds, CHUNK, this::insertOnceByKey);
+    }
+
+    private Mono<Long> insertOnceByKey(List<IngestSeeds.ArtistSeed> seeds) {
+        if (seeds == null || seeds.isEmpty()) return Mono.just(0L);
+
+        List<IngestSeeds.ArtistSeed> safe = seeds.stream()
+                .filter(s -> s != null && s.key() != null && s.name() != null)
+                .toList();
+        if (safe.isEmpty()) return Mono.just(0L);
+
+        StringBuilder sql = new StringBuilder("""
+            INSERT INTO artist (name_key, name) VALUES
+        """);
+
+        for (int i = 0; i < safe.size(); i++) {
+            if (i > 0) sql.append(",");
+            sql.append("(:k").append(i).append(", :n").append(i).append(")");
+        }
+
+        sql.append("""
+            ON DUPLICATE KEY UPDATE
+              name = name
+        """);
+
+        DatabaseClient.GenericExecuteSpec spec = db.sql(sql.toString());
+        for (int i = 0; i < safe.size(); i++) {
+            IngestSeeds.ArtistSeed s = safe.get(i);
+            spec = spec.bind("k" + i, s.key())
+                    .bind("n" + i, NormalizeUtils.norm(s.name()));
+        }
+
+        return spec.fetch().rowsUpdated();
+    }
+
+    /**
+     * name_key IN (...) 로 id 매핑 조회
+     * @return name_key -> artist.id
+     */
+    public Mono<Map<String, Long>> fetchArtistIdsByKey(List<String> keys) {
+        if (keys == null || keys.isEmpty()) return Mono.just(Map.of());
+
+        List<String> uniq = keys.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (uniq.isEmpty()) return Mono.just(Map.of());
+
+        StringBuilder sql = new StringBuilder("""
+            SELECT id, name_key
+            FROM artist
+            WHERE name_key IN (
+        """);
+        for (int i = 0; i < uniq.size(); i++) {
+            if (i > 0) sql.append(",");
+            sql.append(":k").append(i);
+        }
+        sql.append(")");
+
+        DatabaseClient.GenericExecuteSpec spec = db.sql(sql.toString());
+        for (int i = 0; i < uniq.size(); i++) {
+            spec = spec.bind("k" + i, uniq.get(i));
+        }
+
+        return spec
+                .map((row, meta) -> Map.entry(
+                        row.get("name_key", String.class),
                         row.get("id", Long.class)
                 ))
                 .all()
