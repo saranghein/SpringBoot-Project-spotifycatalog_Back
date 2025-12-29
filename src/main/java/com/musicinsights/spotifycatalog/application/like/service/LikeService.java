@@ -1,6 +1,5 @@
 package com.musicinsights.spotifycatalog.application.like.service;
 
-import com.musicinsights.spotifycatalog.application.like.dto.response.LikeIncResponse;
 import com.musicinsights.spotifycatalog.application.like.dto.response.LikeResponse;
 import com.musicinsights.spotifycatalog.application.like.dto.response.TopLikeResponse;
 import com.musicinsights.spotifycatalog.application.like.repository.LikeCounterRepository;
@@ -63,12 +62,6 @@ public class LikeService {
      * @return 증가량 집계 결과
      */
     public Flux<TopLikeResponse> topIncreased(int windowMinutes, int limit) {
-        return likeEventRepository.findTopIncreased(windowMinutes, limit)
-                .map(r -> new TopLikeResponse(
-                        r.trackId(),
-                        r.incCount(),
-                        r.title(),
-                        r.artistNames()
-                ));
+        return likeEventRepository.findTopIncreased(windowMinutes, limit);
     }
 }

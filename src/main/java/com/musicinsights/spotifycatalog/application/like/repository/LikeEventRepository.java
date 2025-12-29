@@ -1,6 +1,6 @@
 package com.musicinsights.spotifycatalog.application.like.repository;
 
-import com.musicinsights.spotifycatalog.application.like.dto.response.LikeIncResponse;
+import com.musicinsights.spotifycatalog.application.like.dto.response.TopLikeResponse;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -49,27 +49,7 @@ public class LikeEventRepository {
      * @param limit         조회 개수
      * @return 증가량 집계 결과
      */
-    public Flux<LikeIncResponse> findTopIncreased(int windowMinutes, int limit) {
-//        String sql = """
-//            SELECT track_id, COUNT(*) AS inc_count
-//            FROM track_like_event
-//            WHERE created_at >= ?
-//            GROUP BY track_id
-//            ORDER BY inc_count DESC
-//            LIMIT ?
-//        """;
-//
-//        LocalDateTime from = LocalDateTime.now().minusMinutes(windowMinutes);
-//
-//        return db.sql(sql)
-//                .bind(0, from)
-//                .bind(1, limit)
-//                .map((row, meta) -> new LikeIncResponse(
-//                        row.get("track_id", Long.class),
-//                        row.get("inc_count", Long.class)
-//                ))
-//                .all();
-//    }
+    public Flux<TopLikeResponse> findTopIncreased(int windowMinutes, int limit) {
         String sql = """
         SELECT e.track_id,
                t.title AS track_title,
@@ -94,11 +74,11 @@ public class LikeEventRepository {
         return db.sql(sql)
                 .bind(0, from)
                 .bind(1, limit)
-                .map((row, meta) -> new LikeIncResponse(
+                .map((row, meta) -> new TopLikeResponse(
                         row.get("track_id", Long.class),
                         row.get("inc_count", Long.class),
                         row.get("track_title", String.class),
-                        row.get("artist_names", String.class) // LikeIncResponse에 추가
+                        row.get("artist_names", String.class)
                 ))
                 .all();
     }
