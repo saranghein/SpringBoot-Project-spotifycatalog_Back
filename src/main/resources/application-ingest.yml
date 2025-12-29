@@ -2,10 +2,6 @@ spring:
   config:
     activate:
       on-profile: ingest
-  r2dbc:
-    url: r2dbc:mysql://localhost:3306/spotifycatalog
-    username: root
-    password: root1234
   flyway:
     enabled: false
   datasource:

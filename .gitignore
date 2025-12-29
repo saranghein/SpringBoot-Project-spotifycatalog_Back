@@ -39,3 +39,5 @@ out/
 dataset/
 bench/measure-mem.ps1
 bench/mem.csv
+k6-grafana/
+application-analysis.yml
